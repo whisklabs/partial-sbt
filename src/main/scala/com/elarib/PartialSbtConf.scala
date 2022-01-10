@@ -7,16 +7,12 @@ object PartialSbtConf {
       .configurationSources(baseDir)
       .map(file => (file.getAbsoluteFile, fileChecker))
 
-  private val fileChecker: (File, File) => Boolean = {
-    (sourceFile: File, file: File) =>
-      sourceFile.getAbsoluteFile == file.getAbsoluteFile
+  private val fileChecker: (File, File) => Boolean = { (sourceFile: File, file: File) =>
+    sourceFile.getAbsoluteFile == file.getAbsoluteFile
   }
 
-  private val dirChecker: (File, File) => Boolean = {
-    (sourceFile: File, file: File) =>
-      new File(
-        sourceFile,
-        file.getAbsolutePath.replace(sourceFile.getAbsolutePath, "")).exists()
+  private val dirChecker: (File, File) => Boolean = { (sourceFile: File, file: File) =>
+    new File(sourceFile, file.getAbsolutePath.replace(sourceFile.getAbsolutePath, "")).exists()
   }
 
 }

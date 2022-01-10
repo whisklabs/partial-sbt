@@ -28,26 +28,24 @@ object PartialSbtPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
-      commands += Command("metaBuildChangedFiles")(_ =>
-        PartialSbParser.changeGetterParseer)((st, changeGetter) => {
+      commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParseer)((st, changeGetter) => {
         val metaBuildChangedFiles =
           getMetaBuildChangedFiles(changeGetter)(baseDirectory.value)
 
-        logger.debug(
-          s"${metaBuildChangedFiles.size} meta build files have been changed.")
+        logger.debug(s"${metaBuildChangedFiles.size} meta build files have been changed.")
 
         metaBuildChangedFiles.foreach { file =>
           logger.debug(file)
         }
         st
       }),
-      commands += Command("changedProjects")(_ =>
-        PartialSbParser.changeGetterParseer)((st, changeGetter) => {
+      commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParseer)((st, changeGetter) => {
         val changedProjects: Seq[ResolvedProject] =
           findChangedModules(changeGetter)(
             baseDirectory.value,
             loadedBuild.value.allProjectRefs,
-            buildDependencies.value.classpathTransitive)
+            buildDependencies.value.classpathTransitive
+          )
 
         logger.debug(s"${changedProjects.size} projects have been changed")
 
@@ -68,26 +66,24 @@ object PartialSbtPlugin extends AutoPlugin {
 
     getMetaBuildChangedFiles(changeGetter)(baseDir) match {
       case _ :: _ =>
-        logger.debug(
-          s"Metabuild files have changed. Need to reload all the ${projectMap.size} projects")
+        logger.debug(s"Metabuild files have changed. Need to reload all the ${projectMap.size} projects")
         projectMap
           .map(_._2)
           .toSeq
           .sortBy(_.id)
       case Nil =>
         val reverseDependencyMap: DependencyMap[ResolvedProject] = buildDeps
-          .foldLeft[DependencyMap[ResolvedProject]](Map.empty) {
-            (acc, dependency) =>
-              val (ref, dependsOnList) = dependency
+          .foldLeft[DependencyMap[ResolvedProject]](Map.empty) { (acc, dependency) =>
+            val (ref, dependsOnList) = dependency
 
-              dependsOnList.foldLeft(acc) { (dependencyMap, key) =>
-                val resolvedProjects = dependencyMap.getOrElse(key, Nil)
-                val newValue: Seq[ResolvedProject] =
-                  projectMap
-                    .get(ref)
-                    .fold(resolvedProjects)(_ +: resolvedProjects)
-                dependencyMap + (key -> newValue)
-              }
+            dependsOnList.foldLeft(acc) { (dependencyMap, key) =>
+              val resolvedProjects = dependencyMap.getOrElse(key, Nil)
+              val newValue: Seq[ResolvedProject] =
+                projectMap
+                  .get(ref)
+                  .fold(resolvedProjects)(_ +: resolvedProjects)
+              dependencyMap + (key -> newValue)
+            }
 
           }
 
@@ -100,9 +96,7 @@ object PartialSbtPlugin extends AutoPlugin {
           .filter {
             case (_, resolvedProject) =>
               !diffsFiles
-                .filter(file =>
-                  file.getAbsolutePath.contains(
-                    resolvedProject.base.getAbsolutePath))
+                .filter(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
                 .isEmpty
           }
           .flatMap {
@@ -120,8 +114,7 @@ object PartialSbtPlugin extends AutoPlugin {
 
   }
 
-  private def getMetaBuildChangedFiles(changeGetter: ChangeGetter)(
-      baseDir: File): List[File] = {
+  private def getMetaBuildChangedFiles(changeGetter: ChangeGetter)(baseDir: File): List[File] = {
 
     lazy val metaBuildFiles: Seq[(File, (File, File) => Boolean)] =
       PartialSbtConf.metaBuildFiles(baseDir)

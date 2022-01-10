@@ -138,3 +138,5 @@ project/plugins/project/
 *.log
 
 # End of https://www.gitignore.io/api/sbt,diff,scala,macos,intellij+all
+
+.bsp

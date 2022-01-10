@@ -16,15 +16,13 @@ sealed trait ChangeGetter {
   def changes: List[File]
 }
 
-case class GitBranchChangeGetter(sourceBranch: String, targetBranch: String)
-    extends ChangeGetter {
+case class GitBranchChangeGetter(sourceBranch: String, targetBranch: String) extends ChangeGetter {
 
   override def changes: List[File] =
     GitChangeGetterHelper.getBranchDiff(sourceBranch, targetBranch)
 }
 
-case class GitCommitChangeGetter(firstCommit: String, secondCommit: String)
-    extends ChangeGetter {
+case class GitCommitChangeGetter(firstCommit: String, secondCommit: String) extends ChangeGetter {
   override def changes: List[File] =
     GitChangeGetterHelper.getCommitDiff(firstCommit, secondCommit)
 }
@@ -55,8 +53,7 @@ object GitChangeGetterHelper {
     gitDiff(oldTree, newTree)
   }
 
-  private def gitDiff(oldTree: CanonicalTreeParser,
-                      newTree: CanonicalTreeParser) = {
+  private def gitDiff(oldTree: CanonicalTreeParser, newTree: CanonicalTreeParser) = {
     git
       .diff()
       .setOldTree(oldTree)
@@ -64,8 +61,10 @@ object GitChangeGetterHelper {
       .call()
       .asScala
       .map { diffEntry =>
-        val path = if (diffEntry.getNewPath == DiffEntry.DEV_NULL)
-          diffEntry.getOldPath else diffEntry.getNewPath
+        val path =
+          if (diffEntry.getNewPath == DiffEntry.DEV_NULL)
+            diffEntry.getOldPath
+          else diffEntry.getNewPath
         new File(path)
       }
       .toList
