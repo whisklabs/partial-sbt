@@ -2,7 +2,7 @@ name := "simple-project"
 
 version := "0.1"
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.13"
 
 enablePlugins(com.elarib.PartialSbtPlugin)
 

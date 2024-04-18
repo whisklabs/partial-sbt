@@ -2,7 +2,7 @@ def settings(projectId: String) = Seq(
   name := projectId,
   organization := "com.elarib",
   version := "0.1-SNAPSHOT",
-  scalaVersion := "2.12.4",
+  scalaVersion := "2.12.19",
   //    scriptedLaunchOpts := { scriptedLaunchOpts.value ++
   //      Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
   //    },
@@ -60,6 +60,19 @@ val src = file("src")
 val libs = src / "libs"
 val tools = src / "tools"
 val service = src / "services"
+
+lazy val root = sbt.Project("multi-module-project", file("."))
+  .aggregate(
+    firstLib,
+    secondLib,
+    firstTool,
+    secondTool,
+    thirdTool,
+    firstService,
+    secondService,
+    thirdService,
+    fourthService
+  )
 
 //Libs
 lazy val firstLib = sbt.Project("lib-1", libs / "lib-1")
