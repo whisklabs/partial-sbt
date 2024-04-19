@@ -1,9 +1,6 @@
 name: CI
 on:
   push:
-    tags: ["*"]
-    branches: ['**', '!update/**', '!pr/**']
-  pull_request:
     branches: ['**', '!update/**', '!pr/**']
 jobs:
   scalafmt:
@@ -57,10 +54,15 @@ jobs:
 
       - uses: coursier/cache-action@v6
 
-      - name: Set the $version
+      - name: Set the $branch
         shell: bash
         run: |
           branch="$(echo -n ${{ github.event.ref }} | sed 's#refs/heads/##g; s#/#-#g' | tr '[:upper:]' '[:lower:]')"
+          echo "branch=\"${branch}\"" >> $GITHUB_ENV
+
+      - name: Set the $version
+        shell: bash
+        run: |
           if [[ ${{env.branch}} == "master" ]]; then
               version="$(date +'%Y.%m.%d')-${{github.run_number}}"
           else
