@@ -80,7 +80,7 @@ jobs:
       - name: Publish
         run: |
           export NEXUS_DEST=$(echo ${{secrets.NEXUS_DEST}} | base64 -d)
-          sbt "compile; publish"
+          sbt --warn "compile; publish"
 
       - name: Label vcs
         run: |
