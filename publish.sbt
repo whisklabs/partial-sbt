@@ -8,10 +8,10 @@ ThisBuild / scmInfo := Some(
 )
 ThisBuild / developers := List(
   Developer(
-    id    = "elarib",
-    name  = "Abdelhamide EL ARIB",
+    id = "elarib",
+    name = "Abdelhamide EL ARIB",
     email = "elarib.abdelhamide@gmail.com",
-    url   = url("http://elarib.com")
+    url = url("http://elarib.com")
   )
 )
 
