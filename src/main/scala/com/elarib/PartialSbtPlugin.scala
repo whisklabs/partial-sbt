@@ -93,18 +93,16 @@ object PartialSbtPlugin extends AutoPlugin {
         val diffsFiles: Seq[sbt.File] = changeGetter.changes
 
         val modulesToBuild: Seq[ResolvedProject] = modulesWithPath
-          .filter {
-            case (_, resolvedProject) =>
-              !diffsFiles
-                .filter(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
-                .isEmpty
+          .filter { case (_, resolvedProject) =>
+            !diffsFiles
+              .filter(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
+              .isEmpty
           }
-          .flatMap {
-            case (projectRef, resolvedProject) =>
-              reverseDependencyMap
-                .get(projectRef)
-                .map(_ :+ resolvedProject)
-                .getOrElse(Seq(resolvedProject))
+          .flatMap { case (projectRef, resolvedProject) =>
+            reverseDependencyMap
+              .get(projectRef)
+              .map(_ :+ resolvedProject)
+              .getOrElse(Seq(resolvedProject))
           }
           .distinct
           .sortBy(_.id)
@@ -121,9 +119,8 @@ object PartialSbtPlugin extends AutoPlugin {
 
     for {
       fileChanged <- changeGetter.changes.flatMap(_.relativeTo(baseDir))
-      (metaFile, metaFileChecker) <- metaBuildFiles.flatMap {
-        case (metaFile, metaFileChecker) =>
-          metaFile.relativeTo(baseDir).map((_, metaFileChecker))
+      (metaFile, metaFileChecker) <- metaBuildFiles.flatMap { case (metaFile, metaFileChecker) =>
+        metaFile.relativeTo(baseDir).map((_, metaFileChecker))
       }
       if metaFileChecker(metaFile, fileChanged)
     } yield fileChanged
