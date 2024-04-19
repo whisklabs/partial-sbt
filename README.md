@@ -1,4 +1,7 @@
-[![Build Status](https://travis-ci.com/elarib/partial-sbt.svg?branch=master)](https://travis-ci.com/elarib/partial-sbt) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.elarib/partial-sbt/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.elarib/partial-sbt)
+![Build Status](https://github.com/whisklabs/partial-sbt/actions/workflows/ci.yml/badge.svg)
+
+# Caution
+This is a fork of the [partial-sbt](https://github.com/elarib/) project. While it includes new features not present in the original project, it has been published to a private Maven repository. Feel free to fork the project and modify it per the license.
 
 Partial-sbt
 ============
@@ -29,12 +32,10 @@ Setup
 
 ### Using Published Plugin
 
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.elarib/partial-sbt/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.elarib/partial-sbt)
-
 Add sbt-assembly as a dependency in `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("com.elarib" % "partial-sbt" % "0.1")
+addSbtPlugin("com.whisklabs" % "partial-sbt" % "version")
 ```
 
 Usage

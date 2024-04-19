@@ -1,9 +1,6 @@
 name: CI
 on:
   push:
-    tags: ["*"]
-    branches: ['**', '!update/**', '!pr/**']
-  pull_request:
     branches: ['**', '!update/**', '!pr/**']
 jobs:
   scalafmt:
@@ -20,11 +17,71 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup M2 Credentials
+        shell: bash
+        run: |
+          mkdir ~/.m2 && echo ${{ secrets.M2_CREDENTIALS }} | base64 -d > ~/.m2/.credentials
+
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'adopt'
           java-version: '17'
+
       - uses: coursier/cache-action@v6
+
       - name: Run tests
         run: |
+          export NEXUS_DEST=$(echo ${{secrets.NEXUS_DEST}} | base64 -d)
           sbt "+Test/compile; +scripted"
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [scalafmt, tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup M2 Credentials
+        shell: bash
+        run: |
+          mkdir ~/.m2 && echo ${{ secrets.M2_CREDENTIALS }} | base64 -d > ~/.m2/.credentials
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+
+      - uses: coursier/cache-action@v6
+
+      - name: Set the $branch
+        shell: bash
+        run: |
+          branch="$(echo -n ${{ github.event.ref }} | sed 's#refs/heads/##g; s#/#-#g' | tr '[:upper:]' '[:lower:]')"
+          echo "branch=\"${branch}\"" >> $GITHUB_ENV
+
+      - name: Set the $version
+        shell: bash
+        run: |
+          if [[ ${{env.branch}} == "master" ]]; then
+              version="$(date +'%Y.%m.%d')-${{github.run_number}}"
+          else
+            version="$(date +'%Y.%m.%d')-${branch}-${{github.run_number}}"
+          fi
+          version=$(echo $version | sed 's/"//g')
+          echo "version=$version"
+          echo "version=$version" >> $GITHUB_ENV
+
+      - name: Set the version for SBT
+        shell: bash
+        run: |
+          echo "ThisBuild / version := \"${{env.version}}\"" > version.sbt
+
+      - name: Publish
+        run: |
+          export NEXUS_DEST=$(echo ${{secrets.NEXUS_DEST}} | base64 -d)
+          sbt --warn "compile; publish"
+
+      - name: Label vcs
+        run: |
+          git tag $version && git push origin $version
