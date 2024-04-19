@@ -35,7 +35,7 @@ Setup
 Add sbt-assembly as a dependency in `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("com.whisklabs" % "partial-sbt" % "version")
+addSbtPlugin("com.whisk" % "partial-sbt" % "version")
 ```
 
 Usage
