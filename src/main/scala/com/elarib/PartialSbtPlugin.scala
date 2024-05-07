@@ -4,7 +4,11 @@ import com.elarib.model.{ChangeGetter, PartialSbParser}
 import org.apache.logging.log4j.LogManager
 import sbt.Keys._
 import sbt.internal.BuildDependencies.DependencyMap
-import sbt.{AutoPlugin, Command, Def, _}
+import sbt._
+
+object BuildKeys {
+  val partialSbtExcludeFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
+}
 
 object PartialSbtPlugin extends AutoPlugin {
 
@@ -26,11 +30,16 @@ object PartialSbtPlugin extends AutoPlugin {
     context.getLogger(getClass.getName)
   }
 
+  override def globalSettings: Seq[Def.Setting[_]] =
+    Seq(
+      BuildKeys.partialSbtExcludeFiles := Def.setting(List.empty[sbt.File]).value
+    )
+
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
-      commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParseer)((st, changeGetter) => {
+      commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
         val metaBuildChangedFiles =
-          getMetaBuildChangedFiles(changeGetter)(baseDirectory.value)
+          getMetaBuildChangedFiles(changeGetter)(baseDirectory.value, BuildKeys.partialSbtExcludeFiles.value)
 
         logger.debug(s"${metaBuildChangedFiles.size} meta build files have been changed.")
 
@@ -39,12 +48,13 @@ object PartialSbtPlugin extends AutoPlugin {
         }
         st
       }),
-      commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParseer)((st, changeGetter) => {
+      commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
         val changedProjects: Seq[ResolvedProject] =
           findChangedModules(changeGetter)(
             baseDirectory.value,
             loadedBuild.value.allProjectRefs,
-            buildDependencies.value.classpathTransitive
+            buildDependencies.value.classpathTransitive,
+            BuildKeys.partialSbtExcludeFiles.value
           )
 
         logger.debug(s"${changedProjects.size} projects have been changed")
@@ -57,19 +67,18 @@ object PartialSbtPlugin extends AutoPlugin {
     )
 
   private def findChangedModules(changeGetter: ChangeGetter)(
-      baseDir: File,
+      baseDir: sbt.File,
       allProjectRefs: Seq[(ProjectRef, ResolvedProject)],
-      buildDeps: DependencyMap[ProjectRef]
+      buildDeps: DependencyMap[ProjectRef],
+      excludeFiles: Seq[sbt.File]
   ): Seq[ResolvedProject] = {
 
     val projectMap: Map[ProjectRef, ResolvedProject] = allProjectRefs.toMap
 
-    getMetaBuildChangedFiles(changeGetter)(baseDir) match {
+    getMetaBuildChangedFiles(changeGetter)(baseDir, excludeFiles) match {
       case _ :: _ =>
         logger.debug(s"Metabuild files have changed. Need to reload all the ${projectMap.size} projects")
-        projectMap
-          .map(_._2)
-          .toSeq
+        projectMap.values.toSeq
           .sortBy(_.id)
       case Nil =>
         val reverseDependencyMap: DependencyMap[ResolvedProject] = buildDeps
@@ -90,13 +99,11 @@ object PartialSbtPlugin extends AutoPlugin {
         val modulesWithPath: Seq[(ProjectRef, ResolvedProject)] =
           allProjectRefs.filter(_._2.base != baseDir)
 
-        val diffsFiles: Seq[sbt.File] = changeGetter.changes
+        val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => excludeFile(baseDir)(f, excludeFiles))
 
         val modulesToBuild: Seq[ResolvedProject] = modulesWithPath
           .filter { case (_, resolvedProject) =>
-            !diffsFiles
-              .filter(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
-              .isEmpty
+            diffsFiles.exists(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
           }
           .flatMap { case (projectRef, resolvedProject) =>
             reverseDependencyMap
@@ -112,13 +119,17 @@ object PartialSbtPlugin extends AutoPlugin {
 
   }
 
-  private def getMetaBuildChangedFiles(changeGetter: ChangeGetter)(baseDir: File): List[File] = {
+  private def getMetaBuildChangedFiles(
+      changeGetter: ChangeGetter
+  )(baseDir: sbt.File, excludeFiles: Seq[sbt.File]): List[sbt.File] = {
 
     lazy val metaBuildFiles: Seq[(File, (File, File) => Boolean)] =
       PartialSbtConf.metaBuildFiles(baseDir)
 
     for {
-      fileChanged <- changeGetter.changes.flatMap(_.relativeTo(baseDir))
+      fileChanged <- changeGetter.changes
+        .flatMap(_.relativeTo(baseDir))
+        .filterNot(f => excludeFile(baseDir)(f, excludeFiles))
       (metaFile, metaFileChecker) <- metaBuildFiles.flatMap { case (metaFile, metaFileChecker) =>
         metaFile.relativeTo(baseDir).map((_, metaFileChecker))
       }
@@ -126,5 +137,19 @@ object PartialSbtPlugin extends AutoPlugin {
     } yield fileChanged
 
   }
+
+  private def excludeFile(baseDir: sbt.File)(file: sbt.File, toExclude: Seq[sbt.File]): Boolean =
+    toExclude.exists {
+      case ef if ef.isAbsolute =>
+        (for {
+          efRel <- ef.relativeTo(baseDir)
+          fRel <- if (file.isAbsolute) file.relativeTo(baseDir) else Some(file)
+        } yield efRel.getCanonicalPath == fRel.getCanonicalPath).getOrElse(false)
+      case ef =>
+        if (file.isAbsolute)
+          file.relativeTo(baseDir).exists(_.getCanonicalPath == ef.getCanonicalPath)
+        else
+          file.getCanonicalPath == ef.getCanonicalPath
+    }
 
 }
