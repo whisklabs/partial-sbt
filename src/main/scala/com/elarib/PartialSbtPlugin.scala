@@ -7,7 +7,7 @@ import sbt.internal.BuildDependencies.DependencyMap
 import sbt._
 
 object BuildKeys {
-  val partialSbtExcludeFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
+  val partialSbtExcludedFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
 }
 
 object PartialSbtPlugin extends AutoPlugin {
@@ -33,14 +33,14 @@ object PartialSbtPlugin extends AutoPlugin {
 
   override def globalSettings: Seq[Def.Setting[_]] =
     Seq(
-      BuildKeys.partialSbtExcludeFiles := Def.setting(List.empty[sbt.File]).value
+      BuildKeys.partialSbtExcludedFiles := Def.setting(List.empty[sbt.File]).value
     )
 
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
         val metaBuildChangedFiles =
-          getMetaBuildChangedFiles(changeGetter)(baseDirectory.value, BuildKeys.partialSbtExcludeFiles.value)
+          getMetaBuildChangedFiles(changeGetter)(baseDirectory.value, BuildKeys.partialSbtExcludedFiles.value)
 
         logger.debug(s"${metaBuildChangedFiles.size} meta build files have been changed.")
 
@@ -55,7 +55,7 @@ object PartialSbtPlugin extends AutoPlugin {
             baseDirectory.value,
             loadedBuild.value.allProjectRefs,
             buildDependencies.value.classpathTransitive,
-            BuildKeys.partialSbtExcludeFiles.value
+            BuildKeys.partialSbtExcludedFiles.value
           )
 
         logger.debug(s"${changedProjects.size} projects have been changed")
@@ -100,7 +100,7 @@ object PartialSbtPlugin extends AutoPlugin {
         val modulesWithPath: Seq[(ProjectRef, ResolvedProject)] =
           allProjectRefs.filter(_._2.base != baseDir)
 
-        val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => excludeFile(baseDir)(f, excludeFiles))
+        val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => isFileExcluded(baseDir)(f, excludeFiles))
 
         val modulesToBuild: Seq[ResolvedProject] = modulesWithPath
           .filter { case (_, resolvedProject) =>
@@ -130,7 +130,7 @@ object PartialSbtPlugin extends AutoPlugin {
     for {
       fileChanged <- changeGetter.changes
         .flatMap(_.relativeTo(baseDir))
-        .filterNot(f => excludeFile(baseDir)(f, excludeFiles))
+        .filterNot(f => isFileExcluded(baseDir)(f, excludeFiles))
       (metaFile, metaFileChecker) <- metaBuildFiles.flatMap { case (metaFile, metaFileChecker) =>
         metaFile.relativeTo(baseDir).map((_, metaFileChecker))
       }
@@ -139,7 +139,7 @@ object PartialSbtPlugin extends AutoPlugin {
 
   }
 
-  private def excludeFile(baseDir: sbt.File)(file: sbt.File, toExclude: Seq[sbt.File]): Boolean =
+  private def isFileExcluded(baseDir: sbt.File)(file: sbt.File, toExclude: Seq[sbt.File]): Boolean =
     toExclude.exists {
       case ef if ef.isAbsolute =>
         (for {
