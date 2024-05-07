@@ -12,7 +12,7 @@ object BuildKeys {
 
 object PartialSbtPlugin extends AutoPlugin {
 
-  lazy val logger = {
+  private[elarib] lazy val logger = {
     val context = LogManager
       .getContext(
         this.getClass.getClassLoader,
@@ -27,6 +27,7 @@ object PartialSbtPlugin extends AutoPlugin {
             value.toURI
         }
       )
+
     context.getLogger(getClass.getName)
   }
 
@@ -123,7 +124,7 @@ object PartialSbtPlugin extends AutoPlugin {
       changeGetter: ChangeGetter
   )(baseDir: sbt.File, excludeFiles: Seq[sbt.File]): List[sbt.File] = {
 
-    lazy val metaBuildFiles: Seq[(File, (File, File) => Boolean)] =
+    lazy val metaBuildFiles: Seq[(sbt.File, (sbt.File, sbt.File) => Boolean)] =
       PartialSbtConf.metaBuildFiles(baseDir)
 
     for {

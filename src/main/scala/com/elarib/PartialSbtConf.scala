@@ -1,5 +1,7 @@
 package com.elarib
+
 import sbt.{File, BuildPaths}
+
 object PartialSbtConf {
 
   def metaBuildFiles(baseDir: File): Seq[(File, (File, File) => Boolean)] =
