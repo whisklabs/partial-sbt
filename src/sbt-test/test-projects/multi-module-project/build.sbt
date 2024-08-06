@@ -83,6 +83,10 @@ lazy val secondLib = sbt
   .settings(com.elarib.BuildKeys.partialSbtOpaqueProject := ())
 
 //Tools
+lazy val toolsProject = sbt
+  .Project("tools", tools)
+  .settings(settings("tools"))
+
 lazy val firstTool = sbt
   .Project("tool-1", tools / "tool-1")
   .dependsOn(firstLib)

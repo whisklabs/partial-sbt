@@ -2,9 +2,9 @@ package com.elarib
 
 import com.elarib.model.{ChangeGetter, PartialSbParser}
 import org.apache.logging.log4j.LogManager
-import sbt.Keys._
+import sbt.*
+import sbt.Keys.*
 import sbt.internal.BuildDependencies.DependencyMap
-import sbt._
 
 object BuildKeys {
   val partialSbtExcludedFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
@@ -112,10 +112,17 @@ object PartialSbtPlugin extends AutoPlugin {
 
         val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => isFileExcluded(baseDir)(f, excludedFiles))
 
-        val modulesToBuild: Seq[ResolvedProject] = modulesWithPath
-          .filter { case (_, resolvedProject) =>
-            diffsFiles.exists(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
-          }
+        def findContainingProject(file: File): Option[(ProjectRef, ResolvedProject)] =
+          modulesWithPath
+            .filter { case (_, resolvedProject) =>
+              file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath)
+            }
+            .sortBy(_._2.base.getAbsolutePath.length)
+            .lastOption
+
+        diffsFiles
+          .flatMap(findContainingProject)
+          .distinct
           .flatMap { case (projectRef, resolvedProject) =>
             reverseDependencyMap
               .get(projectRef)
@@ -124,8 +131,6 @@ object PartialSbtPlugin extends AutoPlugin {
           }
           .distinct
           .sortBy(_.id)
-
-        modulesToBuild
     }
 
   }
@@ -162,5 +167,4 @@ object PartialSbtPlugin extends AutoPlugin {
         else
           file.getCanonicalPath == ef.getCanonicalPath
     }
-
 }
