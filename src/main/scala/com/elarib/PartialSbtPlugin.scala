@@ -8,6 +8,7 @@ import sbt._
 
 object BuildKeys {
   val partialSbtExcludedFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
+  val partialSbtExcludedProject: SettingKey[Unit] = sbt.settingKey[Unit]("Exclude project from analysis.")
 }
 
 object PartialSbtPlugin extends AutoPlugin {
@@ -50,6 +51,7 @@ object PartialSbtPlugin extends AutoPlugin {
         st
       }),
       commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
+
         val changedProjects: Seq[ResolvedProject] =
           findChangedModules(changeGetter)(
             baseDirectory.value,
@@ -82,6 +84,9 @@ object PartialSbtPlugin extends AutoPlugin {
         projectMap.values.toSeq
           .sortBy(_.id)
       case Nil =>
+        def isIncludedInAnalysis(resolvedProject: ResolvedProject): Boolean =
+          !resolvedProject.settings.exists(_.key.key == BuildKeys.partialSbtExcludedProject.key)
+
         val reverseDependencyMap: DependencyMap[ResolvedProject] = buildDeps
           .foldLeft[DependencyMap[ResolvedProject]](Map.empty) { (acc, dependency) =>
             val (ref, dependsOnList) = dependency
@@ -94,11 +99,15 @@ object PartialSbtPlugin extends AutoPlugin {
                   .fold(resolvedProjects)(_ +: resolvedProjects)
               dependencyMap + (key -> newValue)
             }
-
+          }
+          .filterKeys { projectRef =>
+            projectMap.get(projectRef).exists(isIncludedInAnalysis)
           }
 
         val modulesWithPath: Seq[(ProjectRef, ResolvedProject)] =
-          allProjectRefs.filter(_._2.base != baseDir)
+          allProjectRefs.filter { case (_, resolvedProject) =>
+            isIncludedInAnalysis(resolvedProject) && resolvedProject.base != baseDir
+          }
 
         val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => isFileExcluded(baseDir)(f, excludedFiles))
 
