@@ -80,7 +80,7 @@ lazy val firstLib = sbt
 lazy val secondLib = sbt
   .Project("lib-2", libs / "lib-2")
   .settings(settings("lib-2"))
-  .settings(com.elarib.BuildKeys.partialSbtExcludedProject := ())
+  .settings(com.elarib.BuildKeys.partialSbtOpaqueProject := ())
 
 //Tools
 lazy val firstTool = sbt
