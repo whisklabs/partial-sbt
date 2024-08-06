@@ -18,7 +18,7 @@ commands += Command("addEnvVar")(_ => sbt.internal.util.complete.Parsers.spaceDe
 // Projects
 //                               +-----------+                        +-----------+
 //                               |           |                        |           |
-//                               |   lib-1   +<---------+  +--------->+   lib-2   |
+//                               |   lib-1   +<---------+  +--------->+ lib-2 (X) |
 //                               |           |          |  |          |           |
 //                               +-----^-----+          |  |          +---+-------+
 //                                     |                |  |              ^
@@ -80,6 +80,7 @@ lazy val firstLib = sbt
 lazy val secondLib = sbt
   .Project("lib-2", libs / "lib-2")
   .settings(settings("lib-2"))
+  .settings(com.elarib.BuildKeys.partialSbtExcludedProject := ())
 
 //Tools
 lazy val firstTool = sbt
