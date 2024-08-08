@@ -5,6 +5,7 @@ import org.apache.logging.log4j.LogManager
 import sbt.*
 import sbt.Keys.*
 import sbt.internal.BuildDependencies.DependencyMap
+import sbt.internal.{BuildDependencies, LoadedBuild}
 
 object BuildKeys {
   val partialSbtExcludedFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
@@ -38,6 +39,40 @@ object PartialSbtPlugin extends AutoPlugin {
       BuildKeys.partialSbtExcludedFiles := Def.setting(List.empty[sbt.File]).value
     )
 
+  private def hasCompileConfiguration[A <: ProjectReference](dep: ClasspathDep[A]): Boolean =
+    dep.configuration.forall(value => value.contains("compile->") || value == "compile")
+
+  private def changedProjectsCommand(name: String)(
+      buildDependencies: BuildDependencies,
+      baseDirectory: File,
+      loadedBuild: LoadedBuild,
+      partialSbtExcludedFiles: Seq[File],
+      dependencyFilter: ClasspathDep[ProjectRef] => Boolean
+  ) =
+    Command(name)(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
+
+      val compileDependencyMap: DependencyMap[ClasspathDep[ProjectRef]] =
+        buildDependencies.classpath.mapValues(_.filter(dependencyFilter))
+
+      val transitiveCompileDependencyMap =
+        BuildDependencies.transitive(compileDependencyMap, BuildDependencies.getID)
+
+      val changedProjects: Seq[ResolvedProject] =
+        findChangedModules(changeGetter)(
+          baseDirectory,
+          loadedBuild.allProjectRefs,
+          transitiveCompileDependencyMap,
+          partialSbtExcludedFiles
+        )
+
+      logger.debug(s"${changedProjects.size} projects have been changed")
+
+      changedProjects.foreach { resolvedProject =>
+        logger.debug(resolvedProject.id)
+      }
+      st
+    })
+
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
@@ -51,23 +86,20 @@ object PartialSbtPlugin extends AutoPlugin {
         }
         st
       }),
-      commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
-
-        val changedProjects: Seq[ResolvedProject] =
-          findChangedModules(changeGetter)(
-            baseDirectory.value,
-            loadedBuild.value.allProjectRefs,
-            buildDependencies.value.classpathTransitive,
-            BuildKeys.partialSbtExcludedFiles.value
-          )
-
-        logger.debug(s"${changedProjects.size} projects have been changed")
-
-        changedProjects.foreach { resolvedProject =>
-          logger.debug(resolvedProject.id)
-        }
-        st
-      })
+      commands += changedProjectsCommand("changedProjects")(
+        buildDependencies.value,
+        baseDirectory.value,
+        loadedBuild.value,
+        BuildKeys.partialSbtExcludedFiles.value,
+        Function.const(true)
+      ),
+      commands += changedProjectsCommand("changedProjectsInCompile")(
+        buildDependencies.value,
+        baseDirectory.value,
+        loadedBuild.value,
+        BuildKeys.partialSbtExcludedFiles.value,
+        hasCompileConfiguration
+      )
     )
 
   private def findChangedModules(changeGetter: ChangeGetter)(
