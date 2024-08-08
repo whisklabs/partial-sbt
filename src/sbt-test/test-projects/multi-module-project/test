@@ -24,3 +24,8 @@ $ must-mirror ./result4.log ./expected/4.log
 > addEnvVar PARTIAL_SBT_LOG_PATH result5.log
 > changedProjects dummyChanges ./changes/5.log
 $ must-mirror ./result5.log ./expected/5.log
+# 6th test
+> reload
+> addEnvVar PARTIAL_SBT_LOG_PATH result6.log
+> changedProjectsInCompile dummyChanges ./changes/6.log
+$ must-mirror ./result6.log ./expected/6.log

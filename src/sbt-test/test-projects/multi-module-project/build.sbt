@@ -121,4 +121,8 @@ lazy val thirdService = sbt
 lazy val fourthService = sbt
   .Project("service-4", service / "service-4")
   .dependsOn(firstTool, secondTool)
+  .dependsOn(testKit % Test)
   .settings(settings("service-4"))
+
+lazy val testKit = sbt
+  .Project("testKit", libs / "testKit")
