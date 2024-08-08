@@ -18,7 +18,7 @@ commands += Command("addEnvVar")(_ => sbt.internal.util.complete.Parsers.spaceDe
 // Projects
 //                               +-----------+                        +-----------+
 //                               |           |                        |           |
-//                               |   lib-1   +<---------+  +--------->+   lib-2   |
+//                               |   lib-1   +<---------+  +--------->+ lib-2 (X) |
 //                               |           |          |  |          |           |
 //                               +-----^-----+          |  |          +---+-------+
 //                                     |                |  |              ^
@@ -80,8 +80,13 @@ lazy val firstLib = sbt
 lazy val secondLib = sbt
   .Project("lib-2", libs / "lib-2")
   .settings(settings("lib-2"))
+  .settings(com.elarib.BuildKeys.partialSbtOpaqueProject := ())
 
 //Tools
+lazy val toolsProject = sbt
+  .Project("tools", tools)
+  .settings(settings("tools"))
+
 lazy val firstTool = sbt
   .Project("tool-1", tools / "tool-1")
   .dependsOn(firstLib)
@@ -116,4 +121,8 @@ lazy val thirdService = sbt
 lazy val fourthService = sbt
   .Project("service-4", service / "service-4")
   .dependsOn(firstTool, secondTool)
+  .dependsOn(testKit % Test)
   .settings(settings("service-4"))
+
+lazy val testKit = sbt
+  .Project("testKit", libs / "testKit")

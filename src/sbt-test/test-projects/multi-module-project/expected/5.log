@@ -1,5 +1,5 @@
-Metabuild files have changed. Need to reload all the 10 projects
-10 projects have been changed
+Metabuild files have changed. Need to reload all the 12 projects
+12 projects have been changed
 lib-1
 lib-2
 multi-module-project
@@ -7,6 +7,8 @@ service-1
 service-2
 service-3
 service-4
+testKit
 tool-1
 tool-2
 tool-3
+tools

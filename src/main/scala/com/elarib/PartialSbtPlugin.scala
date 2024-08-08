@@ -2,12 +2,15 @@ package com.elarib
 
 import com.elarib.model.{ChangeGetter, PartialSbParser}
 import org.apache.logging.log4j.LogManager
-import sbt.Keys._
+import sbt.*
+import sbt.Keys.*
 import sbt.internal.BuildDependencies.DependencyMap
-import sbt._
+import sbt.internal.{BuildDependencies, LoadedBuild}
 
 object BuildKeys {
   val partialSbtExcludedFiles = sbt.settingKey[Seq[sbt.File]]("Files that should be excluded from analysis.")
+  val partialSbtOpaqueProject: SettingKey[Unit] =
+    sbt.settingKey[Unit]("Changes in this project will not contribute to invalidation of its dependent projects.")
 }
 
 object PartialSbtPlugin extends AutoPlugin {
@@ -36,6 +39,40 @@ object PartialSbtPlugin extends AutoPlugin {
       BuildKeys.partialSbtExcludedFiles := Def.setting(List.empty[sbt.File]).value
     )
 
+  private def hasCompileConfiguration[A <: ProjectReference](dep: ClasspathDep[A]): Boolean =
+    dep.configuration.forall(value => value.contains("compile->") || value == "compile")
+
+  private def changedProjectsCommand(name: String)(
+      buildDependencies: BuildDependencies,
+      baseDirectory: File,
+      loadedBuild: LoadedBuild,
+      partialSbtExcludedFiles: Seq[File],
+      dependencyFilter: ClasspathDep[ProjectRef] => Boolean
+  ) =
+    Command(name)(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
+
+      val compileDependencyMap: DependencyMap[ClasspathDep[ProjectRef]] =
+        buildDependencies.classpath.mapValues(_.filter(dependencyFilter))
+
+      val transitiveCompileDependencyMap =
+        BuildDependencies.transitive(compileDependencyMap, BuildDependencies.getID)
+
+      val changedProjects: Seq[ResolvedProject] =
+        findChangedModules(changeGetter)(
+          baseDirectory,
+          loadedBuild.allProjectRefs,
+          transitiveCompileDependencyMap,
+          partialSbtExcludedFiles
+        )
+
+      logger.debug(s"${changedProjects.size} projects have been changed")
+
+      changedProjects.foreach { resolvedProject =>
+        logger.debug(resolvedProject.id)
+      }
+      st
+    })
+
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       commands += Command("metaBuildChangedFiles")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
@@ -49,22 +86,20 @@ object PartialSbtPlugin extends AutoPlugin {
         }
         st
       }),
-      commands += Command("changedProjects")(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
-        val changedProjects: Seq[ResolvedProject] =
-          findChangedModules(changeGetter)(
-            baseDirectory.value,
-            loadedBuild.value.allProjectRefs,
-            buildDependencies.value.classpathTransitive,
-            BuildKeys.partialSbtExcludedFiles.value
-          )
-
-        logger.debug(s"${changedProjects.size} projects have been changed")
-
-        changedProjects.foreach { resolvedProject =>
-          logger.debug(resolvedProject.id)
-        }
-        st
-      })
+      commands += changedProjectsCommand("changedProjects")(
+        buildDependencies.value,
+        baseDirectory.value,
+        loadedBuild.value,
+        BuildKeys.partialSbtExcludedFiles.value,
+        Function.const(true)
+      ),
+      commands += changedProjectsCommand("changedProjectsInCompile")(
+        buildDependencies.value,
+        baseDirectory.value,
+        loadedBuild.value,
+        BuildKeys.partialSbtExcludedFiles.value,
+        hasCompileConfiguration
+      )
     )
 
   private def findChangedModules(changeGetter: ChangeGetter)(
@@ -82,6 +117,9 @@ object PartialSbtPlugin extends AutoPlugin {
         projectMap.values.toSeq
           .sortBy(_.id)
       case Nil =>
+        def isTransparentProject(resolvedProject: ResolvedProject): Boolean =
+          !resolvedProject.settings.exists(_.key.key == BuildKeys.partialSbtOpaqueProject.key)
+
         val reverseDependencyMap: DependencyMap[ResolvedProject] = buildDeps
           .foldLeft[DependencyMap[ResolvedProject]](Map.empty) { (acc, dependency) =>
             val (ref, dependsOnList) = dependency
@@ -94,18 +132,29 @@ object PartialSbtPlugin extends AutoPlugin {
                   .fold(resolvedProjects)(_ +: resolvedProjects)
               dependencyMap + (key -> newValue)
             }
-
+          }
+          .filterKeys { projectRef =>
+            projectMap.get(projectRef).exists(isTransparentProject)
           }
 
         val modulesWithPath: Seq[(ProjectRef, ResolvedProject)] =
-          allProjectRefs.filter(_._2.base != baseDir)
+          allProjectRefs.filter { case (_, resolvedProject) =>
+            resolvedProject.base != baseDir
+          }
 
         val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => isFileExcluded(baseDir)(f, excludedFiles))
 
-        val modulesToBuild: Seq[ResolvedProject] = modulesWithPath
-          .filter { case (_, resolvedProject) =>
-            diffsFiles.exists(file => file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath))
-          }
+        def findContainingProject(file: File): Option[(ProjectRef, ResolvedProject)] =
+          modulesWithPath
+            .filter { case (_, resolvedProject) =>
+              file.getAbsolutePath.contains(resolvedProject.base.getAbsolutePath)
+            }
+            .sortBy(_._2.base.getAbsolutePath.length)
+            .lastOption
+
+        diffsFiles
+          .flatMap(findContainingProject)
+          .distinct
           .flatMap { case (projectRef, resolvedProject) =>
             reverseDependencyMap
               .get(projectRef)
@@ -114,8 +163,6 @@ object PartialSbtPlugin extends AutoPlugin {
           }
           .distinct
           .sortBy(_.id)
-
-        modulesToBuild
     }
 
   }
@@ -152,5 +199,4 @@ object PartialSbtPlugin extends AutoPlugin {
         else
           file.getCanonicalPath == ef.getCanonicalPath
     }
-
 }
