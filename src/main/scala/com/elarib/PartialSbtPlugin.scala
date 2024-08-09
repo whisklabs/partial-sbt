@@ -47,7 +47,8 @@ object PartialSbtPlugin extends AutoPlugin {
       baseDirectory: File,
       loadedBuild: LoadedBuild,
       partialSbtExcludedFiles: Seq[File],
-      dependencyFilter: ClasspathDep[ProjectRef] => Boolean
+      dependencyFilter: ClasspathDep[ProjectRef] => Boolean,
+      excludeTestFiles: Boolean
   ) =
     Command(name)(_ => PartialSbParser.changeGetterParser)((st, changeGetter) => {
 
@@ -62,7 +63,8 @@ object PartialSbtPlugin extends AutoPlugin {
           baseDirectory,
           loadedBuild.allProjectRefs,
           transitiveCompileDependencyMap,
-          partialSbtExcludedFiles
+          partialSbtExcludedFiles,
+          excludeTestFiles
         )
 
       logger.debug(s"${changedProjects.size} projects have been changed")
@@ -91,14 +93,16 @@ object PartialSbtPlugin extends AutoPlugin {
         baseDirectory.value,
         loadedBuild.value,
         BuildKeys.partialSbtExcludedFiles.value,
-        Function.const(true)
+        Function.const(true),
+        excludeTestFiles = false
       ),
       commands += changedProjectsCommand("changedProjectsInCompile")(
         buildDependencies.value,
         baseDirectory.value,
         loadedBuild.value,
         BuildKeys.partialSbtExcludedFiles.value,
-        hasCompileConfiguration
+        hasCompileConfiguration,
+        excludeTestFiles = true
       )
     )
 
@@ -106,7 +110,8 @@ object PartialSbtPlugin extends AutoPlugin {
       baseDir: sbt.File,
       allProjectRefs: Seq[(ProjectRef, ResolvedProject)],
       buildDeps: DependencyMap[ProjectRef],
-      excludedFiles: Seq[sbt.File]
+      excludedFiles: Seq[sbt.File],
+      excludeTestFiles: Boolean
   ): Seq[ResolvedProject] = {
 
     val projectMap: Map[ProjectRef, ResolvedProject] = allProjectRefs.toMap
@@ -144,6 +149,9 @@ object PartialSbtPlugin extends AutoPlugin {
 
         val diffsFiles: Seq[sbt.File] = changeGetter.changes.filterNot(f => isFileExcluded(baseDir)(f, excludedFiles))
 
+        def isExcludedTestFile(file: sbt.File, resolvedProject: ResolvedProject): Boolean =
+          excludeTestFiles && file.getAbsolutePath.startsWith((resolvedProject.base / "src" / "test").getAbsolutePath)
+
         def findContainingProject(file: File): Option[(ProjectRef, ResolvedProject)] =
           modulesWithPath
             .filter { case (_, resolvedProject) =>
@@ -151,6 +159,9 @@ object PartialSbtPlugin extends AutoPlugin {
             }
             .sortBy(_._2.base.getAbsolutePath.length)
             .lastOption
+            .filterNot { case (_, resolvedProject) =>
+              isExcludedTestFile(file, resolvedProject)
+            }
 
         diffsFiles
           .flatMap(findContainingProject)
