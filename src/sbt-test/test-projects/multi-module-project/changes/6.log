@@ -1,1 +1,2 @@
 src/libs/testKit/build.sbt
+src/libs/lib-1/src/test/scala/Test.scala
